@@ -18,41 +18,57 @@ int main() {
         static int frames = 0;
         const auto gameWorld = MemRead<uintptr_t>(g_gameBaseAddress + GWORLD_OFFSET);
         if (!gameWorld) {
+            std::cerr << "No gameWorld" << std::endl;
+
             continue;
         }
 
         const auto owningGameInstance = MemRead<uintptr_t>(gameWorld + 0x01B8);
         if (!owningGameInstance) {
+            std::cerr << "No owningGameInstance" << std::endl;
+
             continue;
         }
 
         const auto localPlayersArray = MemRead<TArray<uintptr_t>>(owningGameInstance + 0x38);
         if (!localPlayersArray.Data || localPlayersArray.NumElements <= 0) {
+            std::cerr << "No localPlayersArray.Data || localPlayersArray.NumElements" << std::endl;
+
             continue;
         }
 
         const auto localPlayer = MemRead<uintptr_t>((uintptr_t)localPlayersArray.Data);
         if (!localPlayer) {
+            std::cerr << "No localPlayer" << std::endl;
+
             continue;
         }
 
         const auto localPlayerController = MemRead<uintptr_t>(localPlayer + 0x30);
         if (!localPlayerController) {
+            std::cerr << "No localPlayerController" << std::endl;
+
             continue;
         }
 
         const auto localPlayerState = MemRead<uintptr_t>(localPlayerController + 0x02A8);
         if (!localPlayerState) {
+            std::cerr << "No localPlayerState" << std::endl;
+
             continue;
         }
 
         const auto localPlayerCameraManager = MemRead<uintptr_t>(localPlayerController + 0x0358);
         if (!localPlayerCameraManager) {
+            std::cerr << "No localPlayerCameraManager" << std::endl;
+
             continue;
         }
 
         const auto localPlayerRoot = MemRead<uintptr_t>(localPlayerCameraManager + 0x01A8);
         if (!localPlayerRoot) {
+            std::cerr << "No localPlayerRoot" << std::endl;
+
             continue;
         }
 
@@ -63,11 +79,15 @@ int main() {
 
         const auto gameState = MemRead<uintptr_t>(gameWorld + 0x0158);
         if (!gameState) {
+            std::cerr << "No gameState" << std::endl;
+
             continue;
         }
 
         const auto playerArray = MemRead<TArray<uintptr_t>>(gameState + 0x02B8);
         if (!playerArray.Data) {
+            std::cerr << "No playerArray.Data" << std::endl;
+
             continue;
         }
 
@@ -88,7 +108,7 @@ int main() {
                 continue;
             }
 
-            const auto playerLocation = MemRead<Location>(playerRootComponent + 0x0130);
+            const auto playerLocation = MemRead<Location>(playerRootComponent + 0x0130, false, true);
             const auto screenPosition = WorldToScreen(playerLocation.position, matrix, camera);
             if (screenPosition.x <= 0.0 || screenPosition.x >= 1920.0 ||
                 screenPosition.y <= 0.0 || screenPosition.y >= 1080.0) {
