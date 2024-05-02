@@ -14,13 +14,13 @@ DWORD pids[2]{ 0, 0 };
 constexpr auto GAME_NAME = "GZWClientSteam-Win64-Shipping.exe";
 constexpr auto OVERLAY_NAME = "MilkRen.Client.exe";
 
-constexpr uintptr_t GWORLD_OFFSET = 0x89D8CB0;
+constexpr uintptr_t GWORLD_OFFSET = 0x8B49588;
 constexpr DWORD MILKREN_BUFFER_OFFSET = 64;
 
 bool MemReadRaw(const void* address, void* buffer, DWORD size, bool overlay = false, bool ignoreCache = false) {
     return ignoreCache ?
-        VMMDLL_MemRead(g_hVMM, pids[overlay ? 1 : 0], (ULONG64)address, (PBYTE)buffer, size) :
-        VMMDLL_MemReadEx(g_hVMM, pids[overlay ? 1 : 0], (ULONG64)address, (PBYTE)buffer, size, nullptr, VMMDLL_FLAG_NOCACHE)
+        VMMDLL_MemReadEx(g_hVMM, pids[overlay ? 1 : 0], (ULONG64)address, (PBYTE)buffer, size, nullptr, VMMDLL_FLAG_NOCACHE) :
+        VMMDLL_MemRead(g_hVMM, pids[overlay ? 1 : 0], (ULONG64)address, (PBYTE)buffer, size)
         == TRUE;
 }
 
