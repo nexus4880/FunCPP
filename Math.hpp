@@ -2,30 +2,30 @@
 
 #include <cmath>
 
-constexpr float UCONST_Pi = 3.1415926f;
-constexpr float URotationToRadians = UCONST_Pi / 180.f;
+constexpr double UCONST_Pi = 3.1415926;
+constexpr double URotationToRadians = UCONST_Pi / 180.0;
 
 struct Vector3 {
-    float x, y, z;
+    double x, y, z;
 };
 
 struct Vector2 {
-    float x, y;
+    double x, y;
 };
 
 struct Vector4 {
-    float x, y, z, w;
+    double x, y, z, w;
 };
 
 struct FRotator {
-    float pitch, yaw, roll;
+    double pitch, yaw, roll;
 };
 
 Vector3 RotationToVector(FRotator R) {
     Vector3 Vec;
-    float fYaw = R.yaw * URotationToRadians;
-    float fPitch = R.pitch * URotationToRadians;
-    float CosPitch = cos(fPitch);
+    double fYaw = R.yaw * URotationToRadians;
+    double fPitch = R.pitch * URotationToRadians;
+    double CosPitch = cos(fPitch);
     Vec.x = cos(fYaw) * CosPitch;
     Vec.y = sin(fYaw) * CosPitch;
     Vec.z = sin(fPitch);
@@ -33,12 +33,12 @@ Vector3 RotationToVector(FRotator R) {
     return Vec;
 }
 
-float Size(Vector3& v) {
+double Size(Vector3& v) {
     return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
 
 void Normalize(Vector3& v) {
-    float size = Size(v);
+    double size = Size(v);
 
     if (!size)
         v.x = v.y = v.z = 1;
@@ -60,14 +60,14 @@ Vector3 VectorSubtract(Vector3 va, Vector3 vb) {
     return out;
 }
 
-float Vector3Distance(const Vector3& va, const Vector3& vb) {
-    float dx = va.x - vb.x;
-    float dy = va.y - vb.y;
-    float dz = va.z - vb.z;
+double Vector3Distance(const Vector3& va, const Vector3& vb) {
+    double dx = va.x - vb.x;
+    double dy = va.y - vb.y;
+    double dz = va.z - vb.z;
 
     return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
-float inline Dot(const Vector3& V1, const Vector3& V2) {
+double inline Dot(const Vector3& V1, const Vector3& V2) {
     return (V1.x * V2.x + V1.y * V2.y + V1.z * V2.z);
 }

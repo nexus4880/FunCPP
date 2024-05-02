@@ -7,56 +7,21 @@
 #include "Memory.hpp"
 #include "Engine.hpp"
 
-constexpr uintptr_t GWORLD_OFFSET = 0x43795D8;
-constexpr DWORD GAME_PID = 20028;
-constexpr DWORD MILKREN_PID = 19308;
-constexpr DWORD MILKREN_BUFFER_OFFSET = 64;
-
 int main() {
-    g_hGame = OpenProcess(PROCESS_ALL_ACCESS, false, GAME_PID);
-    if (!g_hGame) {
-        return 1;
-    }
-
-    const auto baseAddress = GetBaseAddress(L"HarshDoorstop-Win64-Shipping.exe", g_hGame);
-    if (!baseAddress) {
-        CloseHandle(g_hGame);
-
-        return 1;
-    }
-
-    g_hMilkRen = OpenProcess(PROCESS_ALL_ACCESS, false, MILKREN_PID);
-    if (!g_hMilkRen) {
-        CloseHandle(g_hGame);
-
-        return 1;
-    }
-
-    const auto milkRenBase = GetBaseAddress(L"MilkRen.Client.exe", g_hMilkRen);
-    if (!milkRenBase) {
-        CloseHandle(g_hGame);
-        CloseHandle(g_hMilkRen);
-
-        return 1;
-    }
-    const auto bufferAddress = MemRead<uintptr_t>(milkRenBase + 0x3010, g_hMilkRen);
-    if (!bufferAddress) {
-        CloseHandle(g_hGame);
-        CloseHandle(g_hMilkRen);
-
-        return 1;
+    if (!MemInitialize()) {
+        return false;
     }
 
     Payload payload(256 * 1024);
 
-    while (GetAsyncKeyState(VK_END) == 0) {
+    while (GetAsyncKeyState(VK_ESCAPE) == 0) {
         static int frames = 0;
-        const auto gameWorld = MemRead<uintptr_t>(baseAddress + GWORLD_OFFSET);
+        const auto gameWorld = MemRead<uintptr_t>(g_gameBaseAddress + GWORLD_OFFSET);
         if (!gameWorld) {
             continue;
         }
 
-        const auto owningGameInstance = MemRead<uintptr_t>(gameWorld + 0x188);
+        const auto owningGameInstance = MemRead<uintptr_t>(gameWorld + 0x01B8);
         if (!owningGameInstance) {
             continue;
         }
@@ -76,34 +41,32 @@ int main() {
             continue;
         }
 
-        const auto localPlayerState = MemRead<uintptr_t>(localPlayerController + 0x228);
+        const auto localPlayerState = MemRead<uintptr_t>(localPlayerController + 0x02A8);
         if (!localPlayerState) {
             continue;
         }
 
-        const auto localPlayerCameraManager = MemRead<uintptr_t>(localPlayerController + 0x2B8);
+        const auto localPlayerCameraManager = MemRead<uintptr_t>(localPlayerController + 0x0358);
         if (!localPlayerCameraManager) {
             continue;
         }
 
-        const auto localPlayerRoot = MemRead<uintptr_t>(localPlayerCameraManager + 0x130);
+        const auto localPlayerRoot = MemRead<uintptr_t>(localPlayerCameraManager + 0x01A8);
         if (!localPlayerRoot) {
             continue;
         }
 
-        const auto localPlayerTeamNum = MemRead<uint8_t>(localPlayerState + 0x348);
-        const auto fov = MemRead<float>(localPlayerCameraManager + 0x1A60 + 0x10 + 0x18);
-        const auto cameraPosition = MemRead<Vector3>(localPlayerRoot + 0x11C);
-        const auto cameraRotation = MemRead<Vector3>(localPlayerRoot + 0x128);
-        const Camera camera{ cameraRotation, cameraPosition, fov };
-        const auto matrix = CreateMatrix(cameraRotation);
+        const auto fov = MemRead<float>(localPlayerCameraManager + 0x1320 + 0x10 + 0x0030);
+        const auto cameraLocation = MemRead<Location>(localPlayerRoot + 0x0130, false, true);
+        const Camera camera{ cameraLocation.rotation, cameraLocation.position, fov };
+        const auto matrix = CreateMatrix(cameraLocation.rotation);
 
-        const auto gameState = MemRead<uintptr_t>(gameWorld + 0x130);
+        const auto gameState = MemRead<uintptr_t>(gameWorld + 0x0158);
         if (!gameState) {
             continue;
         }
 
-        const auto playerArray = MemRead<TArray<uintptr_t>>(gameState + 0x238);
+        const auto playerArray = MemRead<TArray<uintptr_t>>(gameState + 0x02B8);
         if (!playerArray.Data) {
             continue;
         }
@@ -115,45 +78,28 @@ int main() {
                 continue;
             }
 
-            const auto teamNum = MemRead<uint8_t>(playerState + 0x348);
-            if (teamNum == localPlayerTeamNum) {
-                continue;
-            }
-
-            const auto playerPawn = MemRead<uintptr_t>(playerState + 0x280);
+            const auto playerPawn = MemRead<uintptr_t>(playerState + 0x0318);
             if (!playerPawn) {
                 continue;
             }
 
-            const auto playerController = MemRead<uintptr_t>(playerPawn + 0x238);
-            if (!playerController) {
-                continue;
-            }
-
-            const auto playerCharacter = MemRead<uintptr_t>(playerController + 0x260);
-            if (!playerCharacter) {
-                std::cout << "NULL" << std::endl;
-
-                continue;
-            }
-
-            const auto playerRootComponent = MemRead<uintptr_t>(playerPawn + 0x130);
+            const auto playerRootComponent = MemRead<uintptr_t>(playerPawn + 0x01A8);
             if (!playerRootComponent) {
                 continue;
             }
 
-            const auto playerLocation = MemRead<Location>(playerRootComponent + 0x11C);
+            const auto playerLocation = MemRead<Location>(playerRootComponent + 0x0130);
             const auto screenPosition = WorldToScreen(playerLocation.position, matrix, camera);
-            if (screenPosition.x <= 0.f || screenPosition.x >= 1920.f ||
-                screenPosition.y <= 0.f || screenPosition.y >= 1080.f) {
+            if (screenPosition.x <= 0.0 || screenPosition.x >= 1920.0 ||
+                screenPosition.y <= 0.0 || screenPosition.y >= 1080.0) {
                 continue;
             }
             
-            std::optional<std::wstring> playerNameOptional = ReadFString(playerState + 0x300);
+            std::optional<std::wstring> playerNameOptional = ReadFString(playerState + 0x0338);
             const MilkRenLabel nameLabel{
                 playerNameOptional.value_or(L"Player"),
-                screenPosition.x,
-                screenPosition.y,
+                (float)screenPosition.x,
+                (float)screenPosition.y,
                 12.f,
                 0xFFFF0000
             };
@@ -167,15 +113,14 @@ int main() {
 
         size_t size = 0;
         const auto pBuffer = payload.Serialize(size);
-        WriteProcessMemory(g_hMilkRen, LPVOID(bufferAddress + MILKREN_BUFFER_OFFSET), pBuffer, size, NULL);
+        MemWriteRaw((void*)(g_payloadBufferAddress + MILKREN_BUFFER_OFFSET), (void*)pBuffer, (DWORD)size, true);
         payload.Reset();
     }
 
     payload.Reset();
     size_t size = 0;
     const auto pBuffer = payload.Serialize(size);
-    WriteProcessMemory(g_hMilkRen, LPVOID(bufferAddress + MILKREN_BUFFER_OFFSET), pBuffer, size, NULL);
+    MemWriteRaw((void*)(g_payloadBufferAddress + MILKREN_BUFFER_OFFSET), (void*)pBuffer, (DWORD)size, true);
 
-    CloseHandle(g_hGame);
-    CloseHandle(g_hMilkRen);
+    MemUninitialize();
 }
