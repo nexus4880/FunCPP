@@ -12,7 +12,7 @@ DWORD pids[2]{ 0, 0 };
 constexpr auto GAME_NAME = "GZWClientSteam-Win64-Shipping.exe";
 constexpr auto OVERLAY_NAME = "MilkRen.Client.exe";
 
-constexpr uintptr_t GWORLD_OFFSET = 0x8B49588;
+constexpr uintptr_t GWORLD_OFFSET = 0x89D8CB0;
 constexpr DWORD MILKREN_BUFFER_OFFSET = 64;
 
 bool MemReadRaw(const void* address, void* buffer, DWORD size, bool overlay = false, bool ignoreCache = false) {
