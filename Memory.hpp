@@ -7,6 +7,8 @@
 uintptr_t g_payloadBufferAddress = 0;
 uintptr_t g_gameBaseAddress = 0;
 VMM_HANDLE g_hVMM = NULL;
+VMMDLL_SCATTER_HANDLE g_hScatter = NULL;
+
 DWORD pids[2]{ 0, 0 };
 
 constexpr auto GAME_NAME = "GZWClientSteam-Win64-Shipping.exe";
@@ -34,10 +36,25 @@ T MemRead(uintptr_t address, bool overlay = false, bool ignoreCache = false) {
     return t;
 }
 
+template<typename T>
+bool ScatterPrepareRead(uintptr_t address, T* buffer, bool ignoreCache = false) {
+    return VMMDLL_Scatter_PrepareEx(g_hScatter, address, sizeof(T), (PBYTE)buffer, NULL);
+}
+
+bool ClearScatterRequests()
+{
+    return VMMDLL_Scatter_Clear(g_hScatter, pids[0], NULL);
+}
+
+bool ExecuteScatterRead()
+{
+    return VMMDLL_Scatter_ExecuteRead(g_hScatter);
+}
 bool MemInitialize() {
     LPSTR args[3]{ (LPSTR)"", (LPSTR)"-device", (LPSTR)"fpga" };
     g_hVMM = VMMDLL_Initialize(3, args);
-    if (!g_hVMM || g_hVMM == INVALID_HANDLE_VALUE) {
+    g_hScatter = VMMDLL_Scatter_Initialize(g_hVMM, pids[0], NULL);
+    if (!g_hVMM || g_hVMM == INVALID_HANDLE_VALUE || g_hScatter == INVALID_HANDLE_VALUE || !g_hScatter) {
         return false;
     }
 
