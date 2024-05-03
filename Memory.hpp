@@ -3,6 +3,9 @@
 #include <string>
 #include <optional>
 #include <vmmdll.h>
+#include <unordered_map>
+
+std::unordered_map<uint32_t, std::string> nameCache;
 
 uintptr_t g_payloadBufferAddress = 0;
 uintptr_t g_gameBaseAddress = 0;
@@ -99,4 +102,36 @@ std::optional<std::wstring> ReadFString(uintptr_t address) {
     }
 
     return result;
+}
+
+std::string GetFNameFromID(uint32_t nameIndex) {
+    // Check if NameIndex is present in the cache
+    auto cachedName = nameCache.find(nameIndex);
+    std::string actorName;
+    if (cachedName == nameCache.end()) {
+        uint32_t Block = nameIndex >> 16; // Take Upper 16
+        uint16_t Offset = static_cast<uint16_t>(nameIndex); // This will automatically take the lower 16 bits
+        // Calculate base of the name pool and find the relevant chunk
+        uintptr_t FNamePool = g_gameBaseAddress + 0x08932300 + 0x10;
+        uintptr_t NamePoolChunk = MemRead<uintptr_t>(FNamePool + (Block * sizeof(uintptr_t)));
+        // Calculate the address of the desired name entry and its header
+        uintptr_t FNameEntry = NamePoolChunk + (2 * Offset);
+        uint16_t FNameEntryHeader = MemRead<uint16_t>(FNameEntry);
+        uintptr_t StrPtr = FNameEntry + 0x2;
+        uint32_t StrLength = FNameEntryHeader >> 0x6;
+        if (StrLength > 99) {
+            StrLength = 99;
+        }
+
+        actorName.reserve(StrLength);
+        actorName = MemReadRaw((void*)StrPtr, actorName.data(), StrLength);
+    }
+    else {
+        actorName = cachedName->second;
+    }
+
+    // Cache name to skip future reads
+    nameCache[nameIndex] = actorName;
+
+    return actorName;
 }
