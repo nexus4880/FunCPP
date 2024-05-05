@@ -107,11 +107,27 @@ int main() {
                     continue;
                 }
 
+                std::wstring name = L"";
+                const auto isAI = MemRead<bool>(actor + 0x0CE5);
+                if (!isAI) {
+                    const auto teamId = MemRead<uint8_t>(actor + 0x778);
+                    const auto playerState = MemRead<uintptr_t>(actor + 0x02C0);
+                    if (playerState) {
+                        name = ReadFString(playerState + 0x0338).value_or(L"NO_NAME") + L": " + std::to_wstring(teamId);
+                    }
+                    else {
+                        name = std::to_wstring(teamId);
+                    }
+                }
+                else {
+                    name = L"AI";
+                }
+
                 const auto location = GetActorLocation(actor);
                 const auto screenPosition = WorldToScreen(location.position, matrix, camera);
 
                 const MilkRenLabel label{
-                    L"AI",
+                    name,
                     (float)screenPosition.x, (float)screenPosition.y,
                     12.f, MilkRenColor(255, 0, 255, 255)
                 };
