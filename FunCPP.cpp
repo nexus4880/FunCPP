@@ -13,7 +13,6 @@ int main() {
     }
 
     Payload payload(256 * 1024);
-
     while (GetAsyncKeyState(VK_ESCAPE) == 0) {
         static int frames = 0;
         const auto gameWorld = MemRead<uintptr_t>(g_gameBaseAddress + GWORLD_OFFSET);
@@ -92,39 +91,33 @@ int main() {
         }
 
         payload.initialized = true;
-        for (auto playerIndex = 0; playerIndex < playerArray.NumElements; playerIndex++) {
-            const auto playerState = MemRead<uintptr_t>((uintptr_t)playerArray.Data + playerIndex * 0x8);
-            if (!playerState) {
-                continue;
-            }
+        const auto levelsArray = MemRead<TArray<uintptr_t>>(gameWorld + 0x0170);
+        for (auto i = 0; i < levelsArray.NumElements; i++) {
+            const auto level = MemRead<uintptr_t>((uintptr_t)levelsArray.Data + i * sizeof(uintptr_t));
+            const auto actorsArray = MemRead<TArray<uintptr_t>>(level + 0x0098);
+            for (auto j = 0; j < actorsArray.NumElements; j++) {
+                const auto actor = MemRead<uintptr_t>((uintptr_t)actorsArray.Data + j * sizeof(uintptr_t));
+                if (!actor) {
+                    continue;
+                }
 
-            const auto playerPawn = MemRead<uintptr_t>(playerState + 0x0318);
-            if (!playerPawn) {
-                continue;
-            }
+                const auto fname = MemRead<uint32_t>(actor + 0x0018);
+                const auto actorName = GetFNameFromID(fname);
+                if (actorName != "BP_MFG_Soldier_C") {
+                    continue;
+                }
 
-            const auto playerRootComponent = MemRead<uintptr_t>(playerPawn + 0x01A8);
-            if (!playerRootComponent) {
-                continue;
-            }
+                const auto location = GetActorLocation(actor);
+                const auto screenPosition = WorldToScreen(location.position, matrix, camera);
 
-            const auto playerLocation = MemRead<Location>(playerRootComponent + 0x0130, false, true);
-            const auto screenPosition = WorldToScreen(playerLocation.position, matrix, camera);
-            if (screenPosition.x <= 0.0 || screenPosition.x >= 1920.0 ||
-                screenPosition.y <= 0.0 || screenPosition.y >= 1080.0) {
-                continue;
-            }
-            
-            std::optional<std::wstring> playerNameOptional = ReadFString(playerState + 0x0338);
-            const MilkRenLabel nameLabel{
-                playerNameOptional.value_or(L"Player"),
-                (float)screenPosition.x,
-                (float)screenPosition.y,
-                12.f,
-                0xFFFF0000
-            };
+                const MilkRenLabel label{
+                    L"AI",
+                    (float)screenPosition.x, (float)screenPosition.y,
+                    12.f, MilkRenColor(255, 0, 255, 255)
+                };
 
-            payload.labels.push_back(nameLabel);
+                payload.labels.push_back(label);
+            }
         }
 
         const MilkRenLabel label2{ std::to_wstring(frames), 20.f, 20.f, 12.f, 0xFFFFFFFF };
