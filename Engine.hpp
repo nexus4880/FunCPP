@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Math.hpp"
-
+#include "Memory.hpp"
 struct Camera {
     Vector3 Rotation;
     Vector3 Location;
@@ -86,4 +86,15 @@ Vector2 WorldToScreen(Vector3 world, const D3DMATRIX& temp_matrix, const Camera&
     double y = 1080.0 * 0.5 - vTransformed.y * (((1920.0 * 0.5) / tan(camera.FOV * UCONST_Pi / 360.0))) / vTransformed.z;
 
     return Vector2{ (float)x, (float)y };
+}
+
+
+
+Location GetActorLocation(uintptr_t actorPtr) {
+    const auto playerRootComponent = MemRead<uintptr_t>(actorPtr + 0x01A8);
+    if (!playerRootComponent) {
+        return { 0,0,0 };
+    }
+
+    return MemRead<Location>(playerRootComponent + 0x0130, false, true);
 }
