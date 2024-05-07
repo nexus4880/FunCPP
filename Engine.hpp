@@ -18,8 +18,7 @@ struct TArray
     int MaxElements;
 
     std::vector<T> AsVector(bool ignoreCache = false) {
-        std::vector<T> result{};
-        result.reserve(NumElements);
+        std::vector<T> result(NumElements);
         if (!MemReadRaw((void*)Data, (void*)result.data(), sizeof(T) * NumElements, false, ignoreCache)) {
             return {};
         }
