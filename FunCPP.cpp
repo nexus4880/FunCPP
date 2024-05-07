@@ -134,10 +134,11 @@ int main() {
     }
 
     std::unordered_map<int, uintptr_t> readActors;
-    std::thread* pThread = nullptr;
     bool shouldThreadBeRan = true;
+    std::thread* pThread = new std::thread(RefreshPlayerList, gameWorld, &shouldThreadBeRan);
     while (GetAsyncKeyState(VK_ESCAPE) == 0) {
         static int frames = 0;
+
         const auto fov = MemRead<float>(localPlayerCameraManager + 0x1320 + 0x10 + 0x0030);
         const auto cameraLocation = MemRead<Location>(localPlayerRoot + 0x0130, false, true);
         const Camera camera{ cameraLocation.rotation, cameraLocation.position, fov };
@@ -162,10 +163,6 @@ int main() {
                 const MilkRenLabel label{ kvp.second.m_name, (float)screenPosition.x, (float)screenPosition.y, 12.f, 0xFFFFFFFF };
                 payload.labels.push_back(label);
             }
-        }
-
-        if (!pThread) {
-            pThread = new std::thread(RefreshPlayerList, gameWorld, &shouldThreadBeRan);
         }
 
         const MilkRenLabel label2{ std::to_wstring(frames), 20.f, 20.f, 30.f, 0xFFFFFFFF };
