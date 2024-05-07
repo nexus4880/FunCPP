@@ -16,6 +16,32 @@ struct TArray
     int MaxElements;
 };
 
+class Soldier {
+public:
+    uintptr_t m_address;
+    uintptr_t m_rootComponent;
+    uintptr_t m_playerState;
+    bool m_isAI;
+    std::wstring m_name = L"";
+    int m_teamSide;
+
+    bool operator==(uintptr_t actorAddress) {
+        return this->m_address == actorAddress;
+    }
+};
+
+class Level {
+public:
+    uintptr_t m_address;
+    std::unordered_map<uintptr_t, Soldier> m_soldiers{};
+    std::vector<uintptr_t> m_actorsRead{};
+    TArray<uintptr_t> actors{};
+};
+
+namespace Cache {
+    std::vector<Level> levelArray; //Its not the cache of levelsArray its the cache of each level. Cached after reading it.
+};
+
 struct Location {
     Vector3 position;
     Vector3 rotation;
