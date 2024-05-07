@@ -3,6 +3,7 @@
 #include "Math.hpp"
 #include "Memory.hpp"
 #include <vector>
+#include <mutex>
 
 struct Camera {
     Vector3 Rotation;
@@ -18,6 +19,10 @@ struct TArray
     int MaxElements;
 
     std::vector<T> AsVector(bool ignoreCache = false) {
+        if (NumElements <= 0 || NumElements >= 1000000) {
+            return {};
+        }
+
         std::vector<T> result(NumElements);
         if (!MemReadRaw((void*)Data, (void*)result.data(), sizeof(T) * NumElements, false, ignoreCache)) {
             return {};
@@ -49,12 +54,18 @@ public:
     std::vector<uintptr_t> m_actorsRead{};
     TArray<uintptr_t> actors{};
 
+    Level(uintptr_t address) {
+        m_address = address;
+    }
+
     bool operator==(uintptr_t levelAddress) {
         return this->m_address == levelAddress;
     }
 };
 
 namespace Cache {
+    std::vector<Level> renderArray; //Its not the cache of levelsArray its the cache of each level. Cached after reading it.
+    std::mutex levelArrayLock{};
     std::vector<Level> levelArray; //Its not the cache of levelsArray its the cache of each level. Cached after reading it.
 };
 
@@ -127,7 +138,7 @@ Vector2 WorldToScreen(Vector3 world, const D3DMATRIX& temp_matrix, const Camera&
     double x = 1920.0 * 0.5 + vTransformed.x * (((1920.0 * 0.5) / tan(camera.FOV * UCONST_Pi / 360.0))) / vTransformed.z;
     double y = 1080.0 * 0.5 - vTransformed.y * (((1920.0 * 0.5) / tan(camera.FOV * UCONST_Pi / 360.0))) / vTransformed.z;
 
-    return Vector2{ (float)x, (float)y };
+    return Vector2{ x, y };
 }
 
 Location GetActorLocation(uintptr_t actorPtr) {

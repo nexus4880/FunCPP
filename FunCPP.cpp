@@ -14,16 +14,19 @@ void RefreshPlayerList(const uintptr_t gameWorld, bool* shouldThreadBeRan) {
     while (*shouldThreadBeRan) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
         const auto levelsArray = MemRead<TArray<uintptr_t>>(gameWorld + 0x0170).AsVector();
+        Cache::levelArrayLock.lock();
+        if (Cache::levelArray.size() > 0) {
+            Cache::levelArrayLock.unlock();
+
+            continue;
+        }
+
         for (auto levelAddress : levelsArray) {
             if (!levelAddress) {
                 continue;
             }
 
-            if (std::find(Cache::levelArray.begin(), Cache::levelArray.end(), levelAddress) != Cache::levelArray.end()) {
-                continue;
-            }
-
-            Cache::levelArray.emplace_back(Level{ levelAddress });
+            Cache::levelArray.push_back(Level{ levelAddress });
         }
 
         for (Level& level : Cache::levelArray) {
@@ -67,6 +70,8 @@ void RefreshPlayerList(const uintptr_t gameWorld, bool* shouldThreadBeRan) {
                 level.m_soldiers[soldier.m_address] = soldier;
             }
         }
+
+        Cache::levelArrayLock.unlock();
     }
 }
 
@@ -151,8 +156,16 @@ int main() {
         }
 
         payload.initialized = true;
-        auto copy = Cache::levelArray;
-        for (const auto& level : copy) {
+        if (Cache::levelArrayLock.try_lock()) {
+            if (Cache::levelArray.size() > 0) {
+                Cache::renderArray = Cache::levelArray;
+                Cache::levelArray.clear();
+            }
+
+            Cache::levelArrayLock.unlock();
+        }
+
+        for (const auto& level : Cache::renderArray) {
             for (const auto& kvp : level.m_soldiers) {
                 if (!kvp.first || kvp.second.m_isDead) {
                     continue;
