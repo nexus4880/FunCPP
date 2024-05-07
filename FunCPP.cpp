@@ -10,6 +10,66 @@
 #include "Payload.hpp"
 #include <thread>
 
+void RefreshPlayerList(const uintptr_t gameWorld, bool* shouldThreadBeRan) {
+    while (*shouldThreadBeRan) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        const auto levelsArray = MemRead<TArray<uintptr_t>>(gameWorld + 0x0170).AsVector();
+        for (auto levelAddress : levelsArray) {
+            if (!levelAddress) {
+                continue;
+            }
+
+            if (std::find(Cache::levelArray.begin(), Cache::levelArray.end(), levelAddress) != Cache::levelArray.end()) {
+                continue;
+            }
+
+            Cache::levelArray.emplace_back(Level{ levelAddress });
+        }
+
+        for (Level& level : Cache::levelArray) {
+            level.actors = MemRead<TArray<uintptr_t>>(level.m_address + 0x0098);
+            const auto actors = level.actors.AsVector();
+            for (const auto actor : actors) {
+                if (!actor) {
+                    continue;
+                }
+
+                const auto fname = MemRead<uint32_t>(actor + 0x0018);
+                const auto actorName = GetFNameFromID(fname);
+                if (actorName != "BP_MFG_Soldier_C") {
+                    continue;
+                }
+
+                const auto isDead = MemRead<bool>(actor + 0x0CF0);
+                if (isDead) {
+                    if (level.m_soldiers.contains(actor)) {
+                        level.m_soldiers[actor].m_isDead = true;
+                    }
+
+                    continue;
+                }
+
+                const auto isAI = MemRead<bool>(actor + 0x0CE5);
+                Soldier soldier{};
+                soldier.m_address = actor;
+                soldier.m_isAI = isAI;
+                if (!isAI) {
+                    const auto teamId = MemRead<uint8_t>(actor + 0x778);
+                    soldier.m_teamSide = teamId;
+                    const auto playerState = MemRead<uintptr_t>(actor + 0x02C0);
+                    soldier.m_playerState = playerState;
+                    soldier.m_name = L"Player";
+                }
+                else {
+                    soldier.m_name = L"AI";
+                }
+
+                level.m_soldiers[soldier.m_address] = soldier;
+            }
+        }
+    }
+}
+
 int main() {
     if (!MemInitialize()) {
         std::cerr << "Failed to Init DMA, make sure the overlay is running" << std::endl;
@@ -90,66 +150,6 @@ int main() {
         }
 
         payload.initialized = true;
-        auto lambda = [&shouldThreadBeRan, &gameWorld]() {
-            while (shouldThreadBeRan) {
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                const auto levelsArray = MemRead<TArray<uintptr_t>>(gameWorld + 0x0170).AsVector();
-                for (auto levelAddress : levelsArray) {
-                    if (!levelAddress) {
-                        continue;
-                    }
-
-                    if (std::find(Cache::levelArray.begin(), Cache::levelArray.end(), levelAddress) != Cache::levelArray.end()) {
-                        continue;
-                    }
-
-                    Cache::levelArray.emplace_back(Level{ levelAddress });
-                }
-
-                for (Level& level : Cache::levelArray) {
-                    level.actors = MemRead<TArray<uintptr_t>>(level.m_address + 0x0098);
-                    const auto actors = level.actors.AsVector();
-                    for (const auto actor : actors) {
-                        if (!actor) {
-                            continue;
-                        }
-
-                        const auto fname = MemRead<uint32_t>(actor + 0x0018);
-                        const auto actorName = GetFNameFromID(fname);
-                        if (actorName != "BP_MFG_Soldier_C") {
-                            continue;
-                        }
-
-                        const auto isDead = MemRead<bool>(actor + 0x0CF0);
-                        if (isDead) {
-                            if (level.m_soldiers.contains(actor)) {
-                                level.m_soldiers[actor].m_isDead = true;
-                            }
-
-                            continue;
-                        }
-
-                        const auto isAI = MemRead<bool>(actor + 0x0CE5);
-                        Soldier soldier{};
-                        soldier.m_address = actor;
-                        soldier.m_isAI = isAI;
-                        if (!isAI) {
-                            const auto teamId = MemRead<uint8_t>(actor + 0x778);
-                            soldier.m_teamSide = teamId;
-                            const auto playerState = MemRead<uintptr_t>(actor + 0x02C0);
-                            soldier.m_playerState = playerState;
-                            soldier.m_name = L"Player";
-                        }
-                        else {
-                            soldier.m_name = L"AI";
-                        }
-
-                        level.m_soldiers[soldier.m_address] = soldier;
-                    }
-                }
-            }
-            };
-
         auto copy = Cache::levelArray;
         for (const auto& level : copy) {
             for (const auto& kvp : level.m_soldiers) {
@@ -165,7 +165,7 @@ int main() {
         }
 
         if (!pThread) {
-            pThread = new std::thread(lambda);
+            pThread = new std::thread(RefreshPlayerList, gameWorld, &shouldThreadBeRan);
         }
 
         const MilkRenLabel label2{ std::to_wstring(frames), 20.f, 20.f, 30.f, 0xFFFFFFFF };
