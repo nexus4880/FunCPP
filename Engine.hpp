@@ -2,18 +2,30 @@
 
 #include "Math.hpp"
 #include "Memory.hpp"
+#include <vector>
+
 struct Camera {
     Vector3 Rotation;
     Vector3 Location;
     float FOV;
 };
 
-template<typename ArrayElementType>
+template<typename T>
 struct TArray
 {
-    ArrayElementType* Data;
+    T* Data;
     int NumElements;
     int MaxElements;
+
+    std::vector<T> AsVector(bool ignoreCache = false) {
+        std::vector<T> result{};
+        result.reserve(NumElements);
+        if (!MemReadRaw((void*)Data, (void*)result.data(), sizeof(T) * NumElements, false, ignoreCache)) {
+            return {};
+        }
+
+        return result;
+    }
 };
 
 class Soldier {
@@ -22,6 +34,7 @@ public:
     uintptr_t m_rootComponent;
     uintptr_t m_playerState;
     bool m_isAI;
+    bool m_isDead;
     std::wstring m_name = L"";
     int m_teamSide;
 
@@ -36,6 +49,10 @@ public:
     std::unordered_map<uintptr_t, Soldier> m_soldiers{};
     std::vector<uintptr_t> m_actorsRead{};
     TArray<uintptr_t> actors{};
+
+    bool operator==(uintptr_t levelAddress) {
+        return this->m_address == levelAddress;
+    }
 };
 
 namespace Cache {

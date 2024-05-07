@@ -90,12 +90,11 @@ int main() {
         }
 
         payload.initialized = true;
-        const auto levelsArray = MemRead<TArray<uintptr_t>>(gameWorld + 0x0170);
-        auto lambda = [&]() {
+        auto lambda = [&shouldThreadBeRan, &gameWorld]() {
             while (shouldThreadBeRan) {
                 std::this_thread::sleep_for(std::chrono::seconds(1));
-                for (int levelIndex = 0; levelIndex < levelsArray.NumElements; levelIndex++) {
-                    const auto levelAddress = MemRead<uintptr_t>((uintptr_t)levelsArray.Data + levelIndex * sizeof(uintptr_t));
+                const auto levelsArray = MemRead<TArray<uintptr_t>>(gameWorld + 0x0170).AsVector();
+                for (auto levelAddress : levelsArray) {
                     if (!levelAddress) {
                         continue;
                     }
@@ -107,11 +106,10 @@ int main() {
                     Cache::levelArray.emplace_back(Level{ levelAddress });
                 }
 
-                for (auto levelIndex = 0; levelIndex < Cache::levelArray.size(); levelIndex++) {
-                    Level& level = Cache::levelArray[levelIndex];
+                for (Level& level : Cache::levelArray) {
                     level.actors = MemRead<TArray<uintptr_t>>(level.m_address + 0x0098);
-                    for (int actorIndex = 0; actorIndex < level.actors.NumElements; actorIndex++) {
-                        const auto actor = MemRead<uintptr_t>((uintptr_t)level.actors.Data + actorIndex * sizeof(uintptr_t));
+                    const auto actors = level.actors.AsVector();
+                    for (const auto actor : actors) {
                         if (!actor) {
                             continue;
                         }
@@ -124,6 +122,10 @@ int main() {
 
                         const auto isDead = MemRead<bool>(actor + 0x0CF0);
                         if (isDead) {
+                            if (level.m_soldiers.contains(actor)) {
+                                level.m_soldiers[actor].m_isDead = true;
+                            }
+
                             continue;
                         }
 
@@ -136,12 +138,7 @@ int main() {
                             soldier.m_teamSide = teamId;
                             const auto playerState = MemRead<uintptr_t>(actor + 0x02C0);
                             soldier.m_playerState = playerState;
-                            if (playerState) {
-                                soldier.m_name = L"Player: " + std::to_wstring(teamId);
-                            }
-                            else {
-                                soldier.m_name = std::to_wstring(teamId);
-                            }
+                            soldier.m_name = L"Player";
                         }
                         else {
                             soldier.m_name = L"AI";
@@ -154,18 +151,15 @@ int main() {
             };
 
         auto copy = Cache::levelArray;
-        for (auto& level : copy) {
-            for (auto kvp : level.m_soldiers) {
-                auto actor = kvp.first;
-                const auto isDead = MemRead<bool>(actor + 0x0CF0);
-                if (isDead) {
+        for (const auto& level : copy) {
+            for (const auto& kvp : level.m_soldiers) {
+                if (!kvp.first || kvp.second.m_isDead) {
                     continue;
                 }
 
-                const auto location = GetActorLocation(actor);
+                const auto location = GetActorLocation(kvp.first);
                 const auto screenPosition = WorldToScreen(location.position, matrix, camera);
-                //const Soldier& soldier = level.m_soldiers[actor];
-                const MilkRenLabel label{ L"ENEMY", (float)screenPosition.x, (float)screenPosition.y, 12.f, 0xFFFFFFFF };
+                const MilkRenLabel label{ kvp.second.m_name, (float)screenPosition.x, (float)screenPosition.y, 12.f, 0xFFFFFFFF };
                 payload.labels.push_back(label);
             }
         }
@@ -179,7 +173,6 @@ int main() {
         frames++;
         size_t size = 0;
         const auto pBuffer = payload.Serialize(size);
-        std::cout << size << std::endl;
         if (!MemWriteRaw((void*)(g_payloadBufferAddress + MILKREN_BUFFER_OFFSET), (void*)pBuffer, (DWORD)size, true)) {
             std::cerr << "FAILED TO WRITE TO OVERLAY" << std::endl;
         }
@@ -187,6 +180,7 @@ int main() {
         payload.Reset();
     }
 
+    shouldThreadBeRan = false;
     pThread->join();
     payload.Reset();
     size_t size = 0;
