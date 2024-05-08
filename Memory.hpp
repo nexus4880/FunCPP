@@ -17,7 +17,8 @@ DWORD pids[2]{ 0, 0 };
 constexpr auto GAME_NAME = "GZWClientSteam-Win64-Shipping.exe";
 constexpr auto OVERLAY_NAME = "MilkRen.Client.exe";
 
-constexpr uintptr_t GWORLD_OFFSET = 0x8B49588;
+constexpr uintptr_t GWORLD_OFFSET = 0x0877AE78;
+constexpr uintptr_t GNAMES_OFFSET = 0x08567640;
 constexpr DWORD MILKREN_BUFFER_OFFSET = 512;
 
 bool MemReadRaw(const void* address, void* buffer, DWORD size, bool overlay = false, bool ignoreCache = false) {
@@ -144,7 +145,7 @@ std::string GetFNameFromID(uint32_t nameIndex) {
 
     uint32_t Block = nameIndex >> 16;
     uint16_t Offset = static_cast<uint16_t>(nameIndex);
-    uintptr_t FNamePool = g_gameBaseAddress + 0x08932300 + 0x10;
+    uintptr_t FNamePool = g_gameBaseAddress + GNAMES_OFFSET + 0x10;
     uintptr_t NamePoolChunk = MemRead<uintptr_t>(FNamePool + (Block * sizeof(uintptr_t)));
     uintptr_t FNameEntry = NamePoolChunk + (2 * Offset);
     uint16_t FNameEntryHeader = MemRead<uint16_t>(FNameEntry);

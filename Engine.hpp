@@ -18,7 +18,7 @@ struct TArray
     int NumElements;
     int MaxElements;
 
-    std::vector<T> AsVector(bool ignoreCache = false) {
+    std::vector<T> AsVector(bool ignoreCache = false) const {
         if (NumElements <= 0 || NumElements >= 1000000) {
             return {};
         }

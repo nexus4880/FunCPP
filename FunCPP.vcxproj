@@ -120,7 +120,7 @@
       <AdditionalDependencies>leechcore.lib;vmm.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy.exe /y C:\Users\host\Documents\GitHub\FunCPP\x64\Debug\FunCPP.exe Z:\GZW</Command>
+      <Command>xcopy.exe /y C:\Users\nexus\Documents\Projects\FunCPP\x64\Release Y:\Users\Attacker\Desktop\GZW-DMA\x64\Debug</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -140,6 +140,9 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>leechcore.lib;vmm.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy.exe /y C:\Users\nexus\Documents\Projects\FunCPP\x64\Release Y:\Users\Attacker\Desktop\GZW-DMA\x64\Debug</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="FunCPP.cpp" />

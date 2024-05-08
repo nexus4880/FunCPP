@@ -13,7 +13,9 @@
 void RefreshPlayerList(const uintptr_t gameWorld, bool* shouldThreadBeRan) {
     while (*shouldThreadBeRan) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
-        const auto levelsArray = MemRead<TArray<uintptr_t>>(gameWorld + 0x0170).AsVector();
+        const auto levelsTArray = MemRead<TArray<uintptr_t>>(gameWorld + 0x0170);
+        const auto levelsArray = levelsTArray.AsVector();
+        //printf_s("Read %i levels at %p\n", levelsTArray.NumElements, (void*)levelsTArray.Data);
         Cache::levelArrayLock.lock();
         if (Cache::levelArray.size() > 0) {
             Cache::levelArrayLock.unlock();
@@ -31,6 +33,7 @@ void RefreshPlayerList(const uintptr_t gameWorld, bool* shouldThreadBeRan) {
 
         for (Level& level : Cache::levelArray) {
             level.actors = MemRead<TArray<uintptr_t>>(level.m_address + 0x0098);
+            //printf_s("Level %p has %i actors at %p\n", (void*)level.m_address, level.actors.NumElements, (void*)level.actors.Data);
             const auto actors = level.actors.AsVector();
             for (const auto actor : actors) {
                 if (!actor) {
@@ -90,12 +93,14 @@ int main() {
         return 1;
     }
 
+    printf_s("[GameWorld] %s: %p\n", GetFNameFromID(MemRead<int32_t>(gameWorld + 0x18)).c_str(), (void*)gameWorld);
     const auto owningGameInstance = MemRead<uintptr_t>(gameWorld + 0x01B8);
     if (!owningGameInstance) {
         std::cerr << "No owningGameInstance" << std::endl;
         return 1;
     }
 
+    printf_s("[OwningGameInstance] %s: %p\n", GetFNameFromID(MemRead<int32_t>(owningGameInstance + 0x18)).c_str(), (void*)owningGameInstance);
     const auto localPlayersArray = MemRead<TArray<uintptr_t>>(owningGameInstance + 0x38);
     if (!localPlayersArray.Data || localPlayersArray.NumElements <= 0) {
         std::cerr << "No localPlayersArray.Data || localPlayersArray.NumElements" << std::endl;
@@ -108,18 +113,32 @@ int main() {
         return 1;
     }
 
+    printf_s("[LocalPlayer] %s: %p\n", GetFNameFromID(MemRead<int32_t>(localPlayer + 0x18)).c_str(), (void*)localPlayer);
     const auto localPlayerController = MemRead<uintptr_t>(localPlayer + 0x30);
     if (!localPlayerController) {
         std::cerr << "No localPlayerController" << std::endl;
         return 1;
     }
+    
+    printf_s("[LocalPlayerController] %s: %p\n", GetFNameFromID(MemRead<int32_t>(localPlayerController + 0x18)).c_str(), (void*)localPlayerController);
 
+    const auto localPlayerTeamId = MemRead<uint8_t>(localPlayerController + 0x778);
+    printf_s("LocalPlayerTeamId: %d\n", localPlayerTeamId);
+
+    const auto localPlayerPawn = MemRead<uintptr_t>(localPlayerController + 0x0348);
+    if (!localPlayerPawn) {
+        std::cerr << "No localPlayerPawn" << std::endl;
+        return 1;
+    }
+
+    printf_s("[localPlayerPawn] %s: %p\n", GetFNameFromID(MemRead<int32_t>(localPlayerPawn + 0x18)).c_str(), (void*)localPlayerPawn);
     const auto localPlayerState = MemRead<uintptr_t>(localPlayerController + 0x02A8);
     if (!localPlayerState) {
         std::cerr << "No localPlayerState" << std::endl;
         return 1;
     }
 
+    printf_s("[LocalPlayerState] %s: %p\n", GetFNameFromID(MemRead<int32_t>(localPlayerState + 0x18)).c_str(), (void*)localPlayerState);
     const auto localPlayerCameraManager = MemRead<uintptr_t>(localPlayerController + 0x0358);
     if (!localPlayerCameraManager) {
         std::cerr << "No localPlayerCameraManager" << std::endl;
@@ -132,6 +151,7 @@ int main() {
         return 1;
     }
 
+    printf_s("[GameState] %s: %p\n", GetFNameFromID(MemRead<int32_t>(gameState + 0x18)).c_str(), (void*)gameState);
     const auto localPlayerRoot = MemRead<uintptr_t>(localPlayerCameraManager + 0x01A8);
     if (!localPlayerRoot) {
         std::cerr << "No localPlayerRoot" << std::endl;
@@ -148,12 +168,6 @@ int main() {
         const auto cameraLocation = MemRead<Location>(localPlayerRoot + 0x0130, false, true);
         const Camera camera{ cameraLocation.rotation, cameraLocation.position, fov };
         const auto matrix = CreateMatrix(cameraLocation.rotation);
-
-        const auto playerArray = MemRead<TArray<uintptr_t>>(gameState + 0x02B8);
-        if (!playerArray.Data) {
-            std::cerr << "No playerArray.Data" << std::endl;
-            continue;
-        }
 
         payload.initialized = true;
         if (Cache::levelArrayLock.try_lock()) {
@@ -173,11 +187,17 @@ int main() {
 
                 const auto location = GetActorLocation(kvp.first);
                 const auto screenPosition = WorldToScreen(location.position, matrix, camera);
-                const MilkRenLabel label{ kvp.second.m_name, (float)screenPosition.x, (float)screenPosition.y, 12.f, 0xFFFFFFFF };
+                if (screenPosition.x < 0.0 || screenPosition.x > 1920.0 || screenPosition.y < 0.0 || screenPosition.y > 1080.0) {
+                    continue;
+                }
+
+                MilkRenColor color = kvp.second.m_isAI ? MilkRenColor(255, 0, 0, 255) : MilkRenColor(0, 255, 0, 0);
+                const MilkRenLabel label{ kvp.second.m_name, (float)screenPosition.x, (float)screenPosition.y, 12.f, color };
                 payload.labels.push_back(label);
             }
         }
 
+        //printf_s("<%f, %f, %f> <%f, %f, %f> | %f\n", camera.Location.x, camera.Location.y, camera.Location.z, camera.Rotation.x, camera.Rotation.y, camera.Rotation.z, camera.FOV);
         const MilkRenLabel label2{ std::to_wstring(frames), 20.f, 20.f, 30.f, 0xFFFFFFFF };
         payload.labels.push_back(label2);
         frames++;
