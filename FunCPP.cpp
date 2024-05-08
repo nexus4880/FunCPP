@@ -64,10 +64,26 @@ void RefreshPlayerList(const uintptr_t gameWorld, bool* shouldThreadBeRan) {
                     soldier.m_teamSide = teamId;
                     const auto playerState = MemRead<uintptr_t>(actor + 0x02C0);
                     soldier.m_playerState = playerState;
-                    soldier.m_name = L"Player";
+                    std::wstring factionName = L"";
+                    switch (soldier.m_teamSide) {
+                    case 0: {
+                        factionName = L"[LRI] ";
+                        break;
+                    }
+                    case 1: {
+                        factionName = L"[MSS] ";
+                        break;
+                    }
+                    case 2: {
+                        factionName = L"[CSI] ";
+                        break;
+                    }
+                    }
+
+                    soldier.m_name = factionName + L"Player: ";
                 }
                 else {
-                    soldier.m_name = L"AI";
+                    soldier.m_name = L"AI: ";
                 }
 
                 level.m_soldiers[soldier.m_address] = soldier;
@@ -186,13 +202,18 @@ int main() {
                 }
 
                 const auto location = GetActorLocation(kvp.first);
+                const auto distance = CalculateDistance(camera.Location, location.position);
+                if (distance > 250.f) {
+                    continue;
+                }
+
                 const auto screenPosition = WorldToScreen(location.position, matrix, camera);
                 if (screenPosition.x < 0.0 || screenPosition.x > 1920.0 || screenPosition.y < 0.0 || screenPosition.y > 1080.0) {
                     continue;
                 }
 
                 MilkRenColor color = kvp.second.m_isAI ? MilkRenColor(255, 0, 0, 255) : MilkRenColor(0, 255, 0, 0);
-                const MilkRenLabel label{ kvp.second.m_name, (float)screenPosition.x, (float)screenPosition.y, 12.f, color };
+                const MilkRenLabel label{ kvp.second.m_name + std::to_wstring(distance), (float)screenPosition.x, (float)screenPosition.y, 12.f, color };
                 payload.labels.push_back(label);
             }
         }

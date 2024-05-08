@@ -140,8 +140,9 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>leechcore.lib;vmm.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent />
     <PostBuildEvent>
-      <Command>xcopy.exe /y C:\Users\nexus\Documents\Projects\FunCPP\x64\Release Y:\Users\Attacker\Desktop\GZW-DMA\x64\Debug</Command>
+      <Command>xcopy /y x64\Release\FunCPP.exe Y:\GZW</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

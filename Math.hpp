@@ -9,6 +9,14 @@ struct Vector3 {
     double x, y, z;
 };
 
+double CalculateDistance(const Vector3& a, const Vector3& b) {
+    double distX = b.x - a.x;
+    double distY = b.y - a.y;
+    double distZ = b.z - a.z;
+
+    return std::sqrt(distX * distX + distY * distY + distZ * distZ);
+}
+
 struct Vector2 {
     double x, y;
 };
