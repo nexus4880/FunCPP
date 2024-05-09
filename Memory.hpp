@@ -15,7 +15,7 @@ VMMDLL_SCATTER_HANDLE g_hScatter = NULL;
 DWORD pids[2]{ 0, 0 };
 
 constexpr auto GAME_NAME = "GZWClientSteam-Win64-Shipping.exe";
-constexpr auto OVERLAY_NAME = "MilkRen.Client.exe";
+constexpr auto OVERLAY_NAME = "Zulrin.exe";
 
 constexpr uintptr_t GWORLD_OFFSET = 0x0877AE78;
 constexpr uintptr_t GNAMES_OFFSET = 0x08567640;

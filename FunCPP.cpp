@@ -78,6 +78,10 @@ void RefreshPlayerList(const uintptr_t gameWorld, bool* shouldThreadBeRan) {
                         factionName = L"[CSI] ";
                         break;
                     }
+                    default:{
+                        factionName = L"[UNK] ";
+                        break;
+                    }
                     }
 
                     soldier.m_name = factionName + L"Player: ";
@@ -197,12 +201,12 @@ int main() {
 
         for (const auto& level : Cache::renderArray) {
             for (const auto& kvp : level.m_soldiers) {
-                if (!kvp.first || kvp.second.m_isDead) {
+                if (!kvp.first ) {
                     continue;
                 }
 
                 const auto location = GetActorLocation(kvp.first);
-                const auto distance = CalculateDistance(camera.Location, location.position);
+                const auto distance = (int)CalculateDistance(camera.Location, location.position) / 100;
                 if (distance > 250.f) {
                     continue;
                 }
@@ -212,8 +216,8 @@ int main() {
                     continue;
                 }
 
-                MilkRenColor color = kvp.second.m_isAI ? MilkRenColor(255, 0, 0, 255) : MilkRenColor(0, 255, 0, 0);
-                const MilkRenLabel label{ kvp.second.m_name + std::to_wstring(distance), (float)screenPosition.x, (float)screenPosition.y, 12.f, color };
+                MilkRenColor color = kvp.second.m_isAI ? MilkRenColor(216, 250, 8,255) : MilkRenColor(255, 0, 0, 255);
+                const MilkRenLabel label{ kvp.second.m_name + std::to_wstring(distance) + L"M", (float)screenPosition.x, (float)screenPosition.y, 12.f, color};
                 payload.labels.push_back(label);
             }
         }
