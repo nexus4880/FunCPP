@@ -13,28 +13,13 @@
 void RefreshPlayerList(const uintptr_t gameWorld, bool* shouldThreadBeRan) {
     while (*shouldThreadBeRan) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
-        const auto levelsTArray = MemRead<TArray<uintptr_t>>(gameWorld + 0x0170);
-        const auto levelsArray = levelsTArray.AsVector();
+        auto levelsTArray = MemRead<TArray<uintptr_t>>(gameWorld + 0x0170);
+        auto levelsArray = levelsTArray.AsVector();
         //printf_s("Read %i levels at %p\n", levelsTArray.NumElements, (void*)levelsTArray.Data);
-        Cache::levelArrayLock.lock();
-        if (Cache::levelArray.size() > 0) {
-            Cache::levelArrayLock.unlock();
-
-            continue;
-        }
-
-        for (auto levelAddress : levelsArray) {
-            if (!levelAddress) {
-                continue;
-            }
-
-            Cache::levelArray.push_back(Level{ levelAddress });
-        }
-
-        for (Level& level : Cache::levelArray) {
-            level.actors = MemRead<TArray<uintptr_t>>(level.m_address + 0x0098);
+        for (auto level : levelsArray) {
+            auto actorsArray = MemRead<TArray<uintptr_t>>(level + 0x0098);
             //printf_s("Level %p has %i actors at %p\n", (void*)level.m_address, level.actors.NumElements, (void*)level.actors.Data);
-            const auto actors = level.actors.AsVector();
+            auto actors = actorsArray.AsVector();
             for (const auto actor : actors) {
                 if (!actor) {
                     continue;
@@ -46,55 +31,11 @@ void RefreshPlayerList(const uintptr_t gameWorld, bool* shouldThreadBeRan) {
                     continue;
                 }
 
-                const auto isDead = MemRead<bool>(actor + 0x0CF0);
-                if (isDead) {
-                    if (level.m_soldiers.contains(actor)) {
-                        level.m_soldiers[actor].m_isDead = true;
-                    }
-
-                    continue;
+                if (!Cache::g_Soldiers.contains(actor)) {
+                    Cache::g_Soldiers[actor] = new Soldier(actor);
                 }
-
-                const auto isAI = MemRead<bool>(actor + 0x0CE5);
-                Soldier soldier{};
-                soldier.m_address = actor;
-                soldier.m_isAI = isAI;
-                if (!isAI) {
-                    const auto teamId = MemRead<uint8_t>(actor + 0x778);
-                    soldier.m_teamSide = teamId;
-                    const auto playerState = MemRead<uintptr_t>(actor + 0x02C0);
-                    soldier.m_playerState = playerState;
-                    std::wstring factionName = L"";
-                    switch (soldier.m_teamSide) {
-                    case 0: {
-                        factionName = L"[LRI] ";
-                        break;
-                    }
-                    case 1: {
-                        factionName = L"[MSS] ";
-                        break;
-                    }
-                    case 2: {
-                        factionName = L"[CSI] ";
-                        break;
-                    }
-                    default:{
-                        factionName = L"[UNK] ";
-                        break;
-                    }
-                    }
-
-                    soldier.m_name = factionName + L"Player: ";
-                }
-                else {
-                    soldier.m_name = L"AI: ";
-                }
-
-                level.m_soldiers[soldier.m_address] = soldier;
             }
         }
-
-        Cache::levelArrayLock.unlock();
     }
 }
 
@@ -178,52 +119,93 @@ int main() {
         return 1;
     }
 
+    const auto localPlayerCharacter = MemRead<uintptr_t>(localPlayerController + 0x02F0);
+    if (!localPlayerCharacter) {
+        std::cerr << "No localPlayerCharacter" << std::endl;
+        return 1;
+    }
+
+    printf_s("[LocalPlayerCharacter] %s: %p\n", GetFNameFromID(MemRead<int32_t>(localPlayerCharacter + 0x18)).c_str(), (void*)localPlayerCharacter);
+    
+    const auto characterMovement = MemRead<uintptr_t>(localPlayerCharacter + 0x0330);
+    if (!characterMovement) {
+        std::cerr << "No characterMovement" << std::endl;
+        return 1;
+    }
+
+    printf_s("[CharacterMovement] %s: %p\n", GetFNameFromID(MemRead<int32_t>(characterMovement + 0x18)).c_str(), (void*)characterMovement);
+    MemWrite<uint8_t>(characterMovement + 0x0213, 0);
+
     std::unordered_map<int, uintptr_t> readActors;
     bool shouldThreadBeRan = true;
     std::thread* pThread = new std::thread(RefreshPlayerList, gameWorld, &shouldThreadBeRan);
     while (GetAsyncKeyState(VK_ESCAPE) == 0) {
-        static int frames = 0;
+        static bool doSpeedHack = false;
+        if ((GetAsyncKeyState(VK_NUMPAD3) & 1)) {
+            doSpeedHack = !doSpeedHack;
+            printf_s("Toggled %s speed hack\n", doSpeedHack ? "on" : "off");
+        }
 
+        if (doSpeedHack) {
+            auto velocity = MemRead<Vector3>(characterMovement + 0xC0);
+            const auto speed = Vector3Size(velocity);
+            if (speed <= 3000) {
+                velocity = Vector3Scale(velocity, 1.1);
+                MemWrite<Vector3>(characterMovement + 0xC0, velocity);
+            }
+        }
+
+        auto pawnFlags = MemRead<uint8_t>(localPlayerPawn + 0x60);
+        bool bReplication = pawnFlags & (1 << 4);
+        if ((GetAsyncKeyState(VK_NUMPAD1) & 1)) {
+            pawnFlags ^= (1 << 4);
+            MemWrite<uint8_t>(localPlayerPawn + 0x60, pawnFlags);
+            printf_s("Toggled %s replication\n", bReplication ? "off" : "on");
+        }
+
+        if (bReplication == false && (GetAsyncKeyState(VK_NUMPAD2) & 1)) {
+            auto movementMode = MemRead<uint8_t>(characterMovement + 0x211);
+            uint8_t targetMovementMode = movementMode == 1 ? 5 : 1;
+            MemWrite<uint8_t>(characterMovement + 0x211, targetMovementMode);
+            printf_s("Toggled %s fly mode\n", targetMovementMode == 5 ? "on" : "off");
+        }
+
+        static int frames = 0;
         const auto fov = MemRead<float>(localPlayerCameraManager + 0x1320 + 0x10 + 0x0030);
         const auto cameraLocation = MemRead<Location>(localPlayerRoot + 0x0130, false, true);
         const Camera camera{ cameraLocation.rotation, cameraLocation.position, fov };
         const auto matrix = CreateMatrix(cameraLocation.rotation);
 
         payload.initialized = true;
-        if (Cache::levelArrayLock.try_lock()) {
-            if (Cache::levelArray.size() > 0) {
-                Cache::renderArray = Cache::levelArray;
-                Cache::levelArray.clear();
+        auto soldiers = Cache::g_Soldiers;
+        for (auto kvp : soldiers) {
+            if (kvp.first == localPlayerPawn) {
+                continue;
             }
 
-            Cache::levelArrayLock.unlock();
-        }
-
-        for (const auto& level : Cache::renderArray) {
-            for (const auto& kvp : level.m_soldiers) {
-                if (!kvp.first ) {
-                    continue;
-                }
-
-                const auto location = GetActorLocation(kvp.first);
-                const auto distance = (int)CalculateDistance(camera.Location, location.position) / 100;
-                if (distance > 250.f) {
-                    continue;
-                }
-
-                const auto screenPosition = WorldToScreen(location.position, matrix, camera);
-                if (screenPosition.x < 0.0 || screenPosition.x > 1920.0 || screenPosition.y < 0.0 || screenPosition.y > 1080.0) {
-                    continue;
-                }
-
-                MilkRenColor color = kvp.second.m_isAI ? MilkRenColor(216, 250, 8,255) : MilkRenColor(255, 0, 0, 255);
-                const MilkRenLabel label{ kvp.second.m_name + std::to_wstring(distance) + L"M", (float)screenPosition.x, (float)screenPosition.y, 12.f, color};
-                payload.labels.push_back(label);
+            if (kvp.second->IsDead()) {
+                continue;
             }
+
+            kvp.second->InvalidatePosition();
+            const auto location = kvp.second->GetPosition();
+            const int distance = CalculateDistance(camera.Location, location) / 100;
+            if (distance > 250) {
+            }
+
+            const auto screenPosition = WorldToScreen(location, matrix, camera);
+            if (screenPosition.x <= 0.0 || screenPosition.x >= 1920.0 || screenPosition.y <= 0.0 || screenPosition.y >= 1080.0) {
+                continue;
+            }
+
+            kvp.second->DrawBoxESP(payload, matrix, camera);
+            MilkRenColor color = kvp.second->IsAI() ? MilkRenColor(216, 250, 8, 255) : MilkRenColor(255, 0, 0, 255);
+            const MilkRenLabel label{ kvp.second->GetName() + L" [" + std::to_wstring(distance) + L"M]", (float)screenPosition.x, (float)screenPosition.y, 12.f, color };
+            payload.labels.push_back(label);
         }
 
         //printf_s("<%f, %f, %f> <%f, %f, %f> | %f\n", camera.Location.x, camera.Location.y, camera.Location.z, camera.Rotation.x, camera.Rotation.y, camera.Rotation.z, camera.FOV);
-        const MilkRenLabel label2{ std::to_wstring(frames), 20.f, 20.f, 30.f, 0xFFFFFFFF };
+        const MilkRenLabel label2{ std::to_wstring(frames), 1920.f * 0.5f, 20.f, 30.f, 0xFFFFFFFF };
         payload.labels.push_back(label2);
         frames++;
         size_t size = 0;

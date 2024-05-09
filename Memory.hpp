@@ -15,7 +15,7 @@ VMMDLL_SCATTER_HANDLE g_hScatter = NULL;
 DWORD pids[2]{ 0, 0 };
 
 constexpr auto GAME_NAME = "GZWClientSteam-Win64-Shipping.exe";
-constexpr auto OVERLAY_NAME = "Zulrin.exe";
+constexpr auto OVERLAY_NAME = "MilkRen.Client.exe";
 
 constexpr uintptr_t GWORLD_OFFSET = 0x0877AE78;
 constexpr uintptr_t GNAMES_OFFSET = 0x08567640;
@@ -38,6 +38,11 @@ T MemRead(uintptr_t address, bool overlay = false, bool ignoreCache = false) {
     MemReadRaw((void*)address, &t, sizeof(T), overlay, ignoreCache);
 
     return t;
+}
+
+template<typename T>
+bool MemWrite(uintptr_t address, const T& value, bool overlay = false) {
+    return MemWriteRaw((void*)address, (void*)&value, sizeof(T), overlay);
 }
 
 

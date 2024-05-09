@@ -41,12 +41,16 @@ Vector3 RotationToVector(FRotator R) {
     return Vec;
 }
 
-double Size(Vector3& v) {
+double Vector3Size(Vector3& v) {
     return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
 
-void Normalize(Vector3& v) {
-    double size = Size(v);
+Vector3 Vector3Scale(Vector3& v, double scalar) {
+    return Vector3{ v.x * scalar, v.y * scalar, v.z * scalar };
+}
+
+void Vector3Normalize(Vector3& v) {
+    double size = Vector3Size(v);
 
     if (!size)
         v.x = v.y = v.z = 1;
@@ -58,7 +62,17 @@ void Normalize(Vector3& v) {
     }
 }
 
-Vector3 VectorSubtract(Vector3 va, Vector3 vb) {
+Vector3 Vector3Add(Vector3 va, Vector3 vb) {
+    Vector3 out;
+
+    out.x = va.x + vb.x;
+    out.y = va.y + vb.y;
+    out.z = va.z + vb.z;
+
+    return out;
+}
+
+Vector3 Vector3Subtract(Vector3 va, Vector3 vb) {
     Vector3 out;
 
     out.x = va.x - vb.x;
@@ -76,6 +90,6 @@ double Vector3Distance(const Vector3& va, const Vector3& vb) {
     return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
-double inline Dot(const Vector3& V1, const Vector3& V2) {
+double inline Vector3Dot(const Vector3& V1, const Vector3& V2) {
     return (V1.x * V2.x + V1.y * V2.y + V1.z * V2.z);
 }
