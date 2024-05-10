@@ -226,7 +226,7 @@ int main() {
         }
 
         const auto now = std::chrono::high_resolution_clock::now();
-        const auto diff = g_lastTick - now;
+        const auto diff = now - g_lastTick;
         if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() >= 1000) {
             g_lastFPS = g_frames;
             g_frames = 0;
