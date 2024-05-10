@@ -145,6 +145,7 @@ int main() {
     std::unordered_map<int, uintptr_t> readActors;
     bool shouldThreadBeRan = true;
     std::thread* pThread = new std::thread(RefreshPlayerList, gameWorld, &shouldThreadBeRan);
+    Soldier* localSoldier = new Soldier(localPlayerPawn);
 
     while (GetAsyncKeyState(VK_ESCAPE) == 0) {
         g_frames++;
@@ -158,7 +159,7 @@ int main() {
                 g_moveHelper = nullptr;
             }
             else {
-                g_moveHelper = new MoveHelper(new Soldier(localPlayerPawn), characterMovement);
+                g_moveHelper = new MoveHelper(localSoldier, characterMovement);
             }
         }
 
