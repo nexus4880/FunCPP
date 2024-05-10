@@ -10,6 +10,10 @@
 #include "Payload.hpp"
 #include <thread>
 
+std::chrono::time_point<std::chrono::high_resolution_clock> g_lastTick;
+int g_lastFPS = 0;
+int g_frames = 0;
+
 void RefreshPlayerList(const uintptr_t gameWorld, bool* shouldThreadBeRan) {
     while (*shouldThreadBeRan) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -140,6 +144,8 @@ int main() {
     bool shouldThreadBeRan = true;
     std::thread* pThread = new std::thread(RefreshPlayerList, gameWorld, &shouldThreadBeRan);
     while (GetAsyncKeyState(VK_ESCAPE) == 0) {
+        g_frames++;
+
         static bool doSpeedHack = false;
         if ((GetAsyncKeyState(VK_NUMPAD3) & 1)) {
             doSpeedHack = !doSpeedHack;
@@ -153,6 +159,21 @@ int main() {
                 velocity = Vector3Scale(velocity, 1.1);
                 MemWrite<Vector3>(characterMovement + 0xC0, velocity);
             }
+        }
+
+        bool multiplyJumpHeight = (GetAsyncKeyState(VK_ADD) & 1);
+        bool changeJumpHeight = multiplyJumpHeight || (GetAsyncKeyState(VK_SUBTRACT) & 1);
+        if (changeJumpHeight) {
+            auto jumpVelocity = MemRead<float>(characterMovement + 0x0180);
+            if (multiplyJumpHeight) {
+                jumpVelocity *= 2.f;
+            }
+            else {
+                jumpVelocity /= 2.f;
+            }
+
+            printf_s("Jump velocity set to %f (default is 420)\n", jumpVelocity);
+            MemWrite<float>(characterMovement + 0x0180, jumpVelocity);
         }
 
         auto pawnFlags = MemRead<uint8_t>(localPlayerPawn + 0x60);
@@ -170,7 +191,6 @@ int main() {
             printf_s("Toggled %s fly mode\n", targetMovementMode == 5 ? "on" : "off");
         }
 
-        static int frames = 0;
         const auto fov = MemRead<float>(localPlayerCameraManager + 0x1320 + 0x10 + 0x0030);
         const auto cameraLocation = MemRead<Location>(localPlayerRoot + 0x0130, false, true);
         const Camera camera{ cameraLocation.rotation, cameraLocation.position, fov };
@@ -191,6 +211,7 @@ int main() {
             const auto location = kvp.second->GetPosition();
             const int distance = CalculateDistance(camera.Location, location) / 100;
             if (distance > 250) {
+                continue;
             }
 
             const auto screenPosition = WorldToScreen(location, matrix, camera);
@@ -204,10 +225,17 @@ int main() {
             payload.labels.push_back(label);
         }
 
+        const auto now = std::chrono::high_resolution_clock::now();
+        const auto diff = g_lastTick - now;
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() >= 1000) {
+            g_lastFPS = g_frames;
+            g_frames = 0;
+            g_lastTick = now;
+        }
+
         //printf_s("<%f, %f, %f> <%f, %f, %f> | %f\n", camera.Location.x, camera.Location.y, camera.Location.z, camera.Rotation.x, camera.Rotation.y, camera.Rotation.z, camera.FOV);
-        const MilkRenLabel label2{ std::to_wstring(frames), 1920.f * 0.5f, 20.f, 30.f, 0xFFFFFFFF };
-        payload.labels.push_back(label2);
-        frames++;
+        const MilkRenLabel fpsLabel{ std::to_wstring(g_lastFPS), 1920.f * 0.5f, 20.f, 30.f, 0xFFFFFFFF };
+        payload.labels.push_back(fpsLabel);
         size_t size = 0;
         const auto pBuffer = payload.Serialize(size);
         if (!MemWriteRaw((void*)(g_payloadBufferAddress + MILKREN_BUFFER_OFFSET), (void*)pBuffer, (DWORD)size, true)) {
