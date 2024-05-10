@@ -41,11 +41,21 @@ Vector3 RotationToVector(FRotator R) {
     return Vec;
 }
 
-double Vector3Size(Vector3& v) {
+double Vector3Size(const Vector3& v) {
     return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
 
-Vector3 Vector3Scale(Vector3& v, double scalar) {
+bool Vector3Equals(const Vector3& va, const Vector3& vb) {
+    return va.x == vb.x && va.y == vb.y && va.z == vb.z;
+}
+
+bool Vector3ApproxEquals(const Vector3& va, const Vector3& vb) {
+    static const auto doubleEpsilon = std::numeric_limits<double>::epsilon();
+
+    return std::abs(va.x - vb.x) <= doubleEpsilon && std::abs(va.y - vb.y) <= doubleEpsilon && std::abs(va.z - vb.z) <= doubleEpsilon;
+}
+
+Vector3 Vector3Scale(const Vector3& v, const double scalar) {
     return Vector3{ v.x * scalar, v.y * scalar, v.z * scalar };
 }
 
@@ -62,7 +72,7 @@ void Vector3Normalize(Vector3& v) {
     }
 }
 
-Vector3 Vector3Add(Vector3 va, Vector3 vb) {
+Vector3 Vector3Add(const Vector3& va, const Vector3& vb) {
     Vector3 out;
 
     out.x = va.x + vb.x;
@@ -72,7 +82,7 @@ Vector3 Vector3Add(Vector3 va, Vector3 vb) {
     return out;
 }
 
-Vector3 Vector3Subtract(Vector3 va, Vector3 vb) {
+Vector3 Vector3Subtract(const Vector3& va, const Vector3& vb) {
     Vector3 out;
 
     out.x = va.x - vb.x;
