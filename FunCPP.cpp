@@ -9,10 +9,12 @@
 #include "Memory.hpp"
 #include "Payload.hpp"
 #include <thread>
+#include "MoveHelper.hpp"
 
 std::chrono::time_point<std::chrono::high_resolution_clock> g_lastTick;
 int g_lastFPS = 0;
 int g_frames = 0;
+MoveHelper* g_moveHelper;
 
 void RefreshPlayerList(const uintptr_t gameWorld, bool* shouldThreadBeRan) {
     while (*shouldThreadBeRan) {
@@ -143,22 +145,36 @@ int main() {
     std::unordered_map<int, uintptr_t> readActors;
     bool shouldThreadBeRan = true;
     std::thread* pThread = new std::thread(RefreshPlayerList, gameWorld, &shouldThreadBeRan);
+
     while (GetAsyncKeyState(VK_ESCAPE) == 0) {
         g_frames++;
 
-        static bool doSpeedHack = false;
+        //static bool doSpeedHack = false;
         if ((GetAsyncKeyState(VK_NUMPAD3) & 1)) {
-            doSpeedHack = !doSpeedHack;
-            printf_s("Toggled %s speed hack\n", doSpeedHack ? "on" : "off");
+            /*doSpeedHack = !doSpeedHack;
+            printf_s("Toggled %s speed hack\n", doSpeedHack ? "on" : "off");*/
+            if (g_moveHelper) {
+                delete g_moveHelper;
+                g_moveHelper = nullptr;
+            }
+            else {
+                g_moveHelper = new MoveHelper(new Soldier(localPlayerPawn), characterMovement);
+            }
         }
 
-        if (doSpeedHack) {
-            auto velocity = MemRead<Vector3>(characterMovement + 0xC0);
+        if (g_moveHelper) {
+            if (g_moveHelper->Move({ 355036.440563, -318065.896290, 2149.079969 })) {
+                delete g_moveHelper;
+                g_moveHelper = nullptr;
+                printf_s("Hit target location within 10,000 units");
+            }
+
+            /*auto velocity = MemRead<Vector3>(characterMovement + 0xC0);
             const auto speed = Vector3Size(velocity);
             if (speed <= 3000) {
                 velocity = Vector3Scale(velocity, 1.1);
                 MemWrite<Vector3>(characterMovement + 0xC0, velocity);
-            }
+            }*/
         }
 
         bool multiplyJumpHeight = (GetAsyncKeyState(VK_ADD) & 1);
