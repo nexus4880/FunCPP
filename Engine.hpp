@@ -58,14 +58,24 @@ struct TArray
 
         return std::vector<T>{};
     }
-
 };
 
-void DrawBoundingBox(const FBoxSphereBounds& boxSphereBounds, const D3DMATRIX& matrix, const Camera& camera, Payload& payload) {
-    Vector3 corners[8];
+struct DrawBoundingBoxData {
+    bool invalidated;
+    bool shouldDraw;
+    Vector3 basePosition;
+    Vector2 screenPoints[8];
+};
+
+DrawBoundingBoxData GetBoundingBoxData(const FBoxSphereBounds& boxSphereBounds, const D3DMATRIX& matrix, const Camera& camera) {
+    DrawBoundingBoxData result{};
     const Vector3& origin = boxSphereBounds.Origin;
     const Vector3& extent = boxSphereBounds.BoxExtent;
 
+    result.invalidated = false;
+    result.basePosition = origin;
+
+    Vector3 corners[8];
     corners[0] = Vector3Add(origin, Vector3{ -extent.x, -extent.y, -extent.z }); // Front bottom left
     corners[1] = Vector3Add(origin, Vector3{ extent.x, -extent.y, -extent.z }); // Front bottom right
     corners[2] = Vector3Add(origin, Vector3{ -extent.x, extent.y, -extent.z });  // Front top left
@@ -76,32 +86,18 @@ void DrawBoundingBox(const FBoxSphereBounds& boxSphereBounds, const D3DMATRIX& m
     corners[7] = Vector3Add(origin, Vector3{ extent.x, extent.y, extent.z });   // Back top right
 
     // Convert corner points from world space to screen space
-    Vector2 screenCorners[8];
     for (int i = 0; i < 8; ++i) {
-        screenCorners[i] = WorldToScreen(corners[i], matrix, camera);
-        if (screenCorners[i].x <= 0.0 || screenCorners[i].x >= 1920.0 || screenCorners[i].y <= 0.0 || screenCorners[i].y >= 1080.0) {
-            return;
+        result.screenPoints[i] = WorldToScreen(corners[i], matrix, camera);
+        if (result.screenPoints[i].x <= 0.0 || result.screenPoints[i].x >= 1920.0 || result.screenPoints[i].y <= 0.0 || result.screenPoints[i].y >= 1080.0) {
+            result.shouldDraw = false;
+
+            return result;
         }
     }
 
-    // Define lines to connect the corners of the box
-    // Front face
-    payload.lines.push_back({ (float)screenCorners[0].x, (float)screenCorners[0].y, (float)screenCorners[1].x, (float)screenCorners[1].y, 0xFFFFFFFF });
-    payload.lines.push_back({ (float)screenCorners[1].x, (float)screenCorners[1].y, (float)screenCorners[3].x, (float)screenCorners[3].y, 0xFFFFFFFF });
-    payload.lines.push_back({ (float)screenCorners[3].x, (float)screenCorners[3].y, (float)screenCorners[2].x, (float)screenCorners[2].y, 0xFFFFFFFF });
-    payload.lines.push_back({ (float)screenCorners[2].x, (float)screenCorners[2].y, (float)screenCorners[0].x, (float)screenCorners[0].y, 0xFFFFFFFF });
+    result.shouldDraw = true;
 
-    // Back face
-    payload.lines.push_back({ (float)screenCorners[4].x, (float)screenCorners[4].y, (float)screenCorners[5].x, (float)screenCorners[5].y, 0xFFFFFFFF });
-    payload.lines.push_back({ (float)screenCorners[5].x, (float)screenCorners[5].y, (float)screenCorners[7].x, (float)screenCorners[7].y, 0xFFFFFFFF });
-    payload.lines.push_back({ (float)screenCorners[7].x, (float)screenCorners[7].y, (float)screenCorners[6].x, (float)screenCorners[6].y, 0xFFFFFFFF });
-    payload.lines.push_back({ (float)screenCorners[6].x, (float)screenCorners[6].y, (float)screenCorners[4].x, (float)screenCorners[4].y, 0xFFFFFFFF });
-
-    // Connect front and back faces
-    payload.lines.push_back({ (float)screenCorners[0].x, (float)screenCorners[0].y, (float)screenCorners[4].x, (float)screenCorners[4].y, 0xFFFFFFFF });
-    payload.lines.push_back({ (float)screenCorners[1].x, (float)screenCorners[1].y, (float)screenCorners[5].x, (float)screenCorners[5].y, 0xFFFFFFFF });
-    payload.lines.push_back({ (float)screenCorners[2].x, (float)screenCorners[2].y, (float)screenCorners[6].x, (float)screenCorners[6].y, 0xFFFFFFFF });
-    payload.lines.push_back({ (float)screenCorners[3].x, (float)screenCorners[3].y, (float)screenCorners[7].x, (float)screenCorners[7].y, 0xFFFFFFFF });
+    return result;
 }
 
 class Soldier {
@@ -155,9 +151,34 @@ public:
         auto thisBoxSphereBounds = FBoxSphereBounds{ boxOrigin, boxExtent };
         thisBoxSphereBounds.Origin = Vector3Add(thisBoxSphereBounds.Origin, GetPosition());
         thisBoxSphereBounds.Origin.z -= thisBoxSphereBounds.BoxExtent.z;
-        thisBoxSphereBounds.BoxExtent.y *= 1.2;
-        thisBoxSphereBounds.BoxExtent.x *= 0.6;
-        DrawBoundingBox(thisBoxSphereBounds, matrix, camera, payload);
+        if (m_boundingBoxData.invalidated || !Vector3ApproxEquals(m_boundingBoxData.basePosition, thisBoxSphereBounds.Origin)) {
+            thisBoxSphereBounds.BoxExtent.y *= 1.2;
+            thisBoxSphereBounds.BoxExtent.x *= 0.6;
+            m_boundingBoxData = GetBoundingBoxData(thisBoxSphereBounds, matrix, camera);
+        }
+
+        if (!m_boundingBoxData.shouldDraw) {
+            return;
+        }
+
+        // Define lines to connect the corners of the box
+        // Front face
+        payload.lines.push_back({ (float)m_boundingBoxData.screenPoints[0].x, (float)m_boundingBoxData.screenPoints[0].y, (float)m_boundingBoxData.screenPoints[1].x, (float)m_boundingBoxData.screenPoints[1].y, 0xFFFFFFFF });
+        payload.lines.push_back({ (float)m_boundingBoxData.screenPoints[1].x, (float)m_boundingBoxData.screenPoints[1].y, (float)m_boundingBoxData.screenPoints[3].x, (float)m_boundingBoxData.screenPoints[3].y, 0xFFFFFFFF });
+        payload.lines.push_back({ (float)m_boundingBoxData.screenPoints[3].x, (float)m_boundingBoxData.screenPoints[3].y, (float)m_boundingBoxData.screenPoints[2].x, (float)m_boundingBoxData.screenPoints[2].y, 0xFFFFFFFF });
+        payload.lines.push_back({ (float)m_boundingBoxData.screenPoints[2].x, (float)m_boundingBoxData.screenPoints[2].y, (float)m_boundingBoxData.screenPoints[0].x, (float)m_boundingBoxData.screenPoints[0].y, 0xFFFFFFFF });
+
+        // Back face
+        payload.lines.push_back({ (float)m_boundingBoxData.screenPoints[4].x, (float)m_boundingBoxData.screenPoints[4].y, (float)m_boundingBoxData.screenPoints[5].x, (float)m_boundingBoxData.screenPoints[5].y, 0xFFFFFFFF });
+        payload.lines.push_back({ (float)m_boundingBoxData.screenPoints[5].x, (float)m_boundingBoxData.screenPoints[5].y, (float)m_boundingBoxData.screenPoints[7].x, (float)m_boundingBoxData.screenPoints[7].y, 0xFFFFFFFF });
+        payload.lines.push_back({ (float)m_boundingBoxData.screenPoints[7].x, (float)m_boundingBoxData.screenPoints[7].y, (float)m_boundingBoxData.screenPoints[6].x, (float)m_boundingBoxData.screenPoints[6].y, 0xFFFFFFFF });
+        payload.lines.push_back({ (float)m_boundingBoxData.screenPoints[6].x, (float)m_boundingBoxData.screenPoints[6].y, (float)m_boundingBoxData.screenPoints[4].x, (float)m_boundingBoxData.screenPoints[4].y, 0xFFFFFFFF });
+
+        // Connect front and back faces
+        payload.lines.push_back({ (float)m_boundingBoxData.screenPoints[0].x, (float)m_boundingBoxData.screenPoints[0].y, (float)m_boundingBoxData.screenPoints[4].x, (float)m_boundingBoxData.screenPoints[4].y, 0xFFFFFFFF });
+        payload.lines.push_back({ (float)m_boundingBoxData.screenPoints[1].x, (float)m_boundingBoxData.screenPoints[1].y, (float)m_boundingBoxData.screenPoints[5].x, (float)m_boundingBoxData.screenPoints[5].y, 0xFFFFFFFF });
+        payload.lines.push_back({ (float)m_boundingBoxData.screenPoints[2].x, (float)m_boundingBoxData.screenPoints[2].y, (float)m_boundingBoxData.screenPoints[6].x, (float)m_boundingBoxData.screenPoints[6].y, 0xFFFFFFFF });
+        payload.lines.push_back({ (float)m_boundingBoxData.screenPoints[3].x, (float)m_boundingBoxData.screenPoints[3].y, (float)m_boundingBoxData.screenPoints[7].x, (float)m_boundingBoxData.screenPoints[7].y, 0xFFFFFFFF });
     }
 
     std::wstring& GetName() {
@@ -170,13 +191,24 @@ public:
 
     Vector3 GetPosition() {
         if (!m_cachedPosition.has_value()) {
-            m_cachedPosition = GetActorLocation(m_address).position;
+            const auto newPosition = GetActorLocation(m_address).position;
+            if (m_lastPosition.has_value()) {
+                if (!Vector3ApproxEquals(newPosition, m_lastPosition.value())) {
+                    m_boundingBoxData.invalidated = true;
+                }
+            }
+
+            m_cachedPosition = newPosition;
         }
 
         return m_cachedPosition.value();
     }
 
     void InvalidatePosition() {
+        if (m_cachedPosition.has_value()) {
+            m_lastPosition = m_cachedPosition.value();
+        }
+
         m_cachedPosition = std::nullopt;
     }
 
@@ -190,7 +222,9 @@ private:
     bool m_isDead = false;
     std::wstring m_name = L"?";
     uint8_t m_teamSide;
+    DrawBoundingBoxData m_boundingBoxData = {};
     std::optional<Vector3> m_cachedPosition = std::nullopt;
+    std::optional<Vector3> m_lastPosition = std::nullopt;
 };
 
 struct Level {
@@ -256,8 +290,8 @@ Vector2 WorldToScreen(Vector3 world, const D3DMATRIX& temp_matrix, const Camera&
     Vector3 vDelta = { world.x - camera.Location.x, world.y - camera.Location.y, world.z - camera.Location.z };
     Vector3 vTransformed = Vector3{ Vector3Dot(vDelta, vAxisY), Vector3Dot(vDelta, vAxisZ), Vector3Dot(vDelta,vAxisX) };
 
-    if (vTransformed.z < 1.f)
-        vTransformed.z = 1.f;
+    if (vTransformed.z < 1.0)
+        vTransformed.z = 1.0;
 
     double x = 1920.0 * 0.5 + vTransformed.x * (((1920.0 * 0.5) / tan(camera.FOV * UCONST_Pi / 360.0))) / vTransformed.z;
     double y = 1080.0 * 0.5 - vTransformed.y * (((1920.0 * 0.5) / tan(camera.FOV * UCONST_Pi / 360.0))) / vTransformed.z;
@@ -266,10 +300,19 @@ Vector2 WorldToScreen(Vector3 world, const D3DMATRIX& temp_matrix, const Camera&
 }
 
 Location GetActorLocation(uintptr_t actorPtr) {
-    const auto playerRootComponent = MemRead<uintptr_t>(actorPtr + 0x01A8);
-    if (!playerRootComponent) {
-        return { 0.0, 0.0, 0.0 };
+    static std::unordered_map<uintptr_t, uintptr_t> s_rootComponents{};
+    uintptr_t rootComponent = 0;
+    if (!s_rootComponents.contains(actorPtr)) {
+        rootComponent = MemRead<uintptr_t>(actorPtr + 0x01A8);
+        if (!rootComponent) {
+            return { };
+        }
+
+        s_rootComponents[actorPtr] = rootComponent;
+    }
+    else {
+        rootComponent = s_rootComponents[actorPtr];
     }
 
-    return MemRead<Location>(playerRootComponent + 0x0130, false, true);
+    return MemRead<Location>(rootComponent + 0x0130, false, true);
 }
